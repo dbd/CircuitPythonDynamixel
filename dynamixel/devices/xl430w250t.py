@@ -1,14 +1,14 @@
 from dynamixel.protocol import Protocol2
 from dynamixel.servo import Servo
 
-class OperatingMode:
+class operatingMode:
     OP_VELOCITY = 1
     OP_POSITION = 3
     OP_EXTENDED_POSITION = 4
     OP_PWM = 16
 
 
-class ParamUnit:
+class paramUnit:
     UNIT_RAW = 0
     UNIT_PERCENT = 1
     UNIT_RPM = 2
@@ -16,36 +16,7 @@ class ParamUnit:
     UNIT_MILLI_AMPERE = 4
 
 
-class Message:
-    UNDEF = 0
-    BEGIN = 1
-    GET_BAUD = 2
-    PING = 3
-    SCAN = 4
-    SET_MODEL_NUMBER = 5
-    GET_MODEL_NUMBER = 6
-    SET_PROTOCOL = 7
-    SET_BAUDRATE = 8
-    TORQUE_ON = 9
-    TORQUE_OFF = 10
-    LED_ON = 11
-    LED_OFF = 12
-    SET_OPERATING_MODE = 13
-    SET_GOAL_POSITION = 14
-    GET_PRESENT_POSITION = 15
-    SET_GOAL_VELOCITY = 16
-    GET_PRESENT_VELOCITY = 17
-    SET_GOAL_PWM = 18
-    GET_PRESENT_PWM = 19
-    SET_GOAL_CURRENT = 20
-    GET_PRESENT_CURRENT = 21
-    GET_TORQUE_ENABLED_STAT = 22
-    READ_CONTROL_TABLE_ITEM = 23
-    WRITE_CONTROL_TABLE_ITEM = 24
-    CONTROL_SET_PROTOCOL_VERSION = 25
-
-
-class CONTROL_TABLE:
+class controlTable:
     MODEL_NUMBER = (0, 2)
     MODEL_INFORMATION = (2, 4)
     FIRMWARE_VERSION = (6, 1)
@@ -100,10 +71,17 @@ class CONTROL_TABLE:
 
 
 class XL430_W250_T(Servo):
-    def __init__(self, *args, unit=ParamUnit.UNIT_DEGREE, **kwargs):
+    CONTROL_TABLE = controlTable
+    PARAM_UNIT = paramUnit
+    OPERATING_MODE = operatingMode
+
+    def __init__(self, *args, unit=PARAM_UNIT.UNIT_DEGREE, **kwargs):
         super(XL430_W250_T, self).__init__(*args, **kwargs)
         self.unit = unit
-        self.protocol = Protocol2()
+        self.protocol = Protocol2(**kwargs)
+
+    def reboot(self):
+        self.protocol.reboot(self.id)
 
     def setProtocolVersion(self, protocol):
         return self.write(Message.SET_PROTOCOL, protocol)
@@ -113,46 +91,49 @@ class XL430_W250_T(Servo):
         return res
     
     def torqueOn(self):
-        return self.write(Message.TORQUE_ON)
+        res = self.writeControlTableItem(self.CONTROL_TABLE.TORQUE_ENABLE, 1)
+        if res != 'OK':
+            return res
 
     def torqueOff(self):
-        return self.write(Message.TORQUE_OFF)
+        res = self.writeControlTableItem(self.CONTROL_TABLE.TORQUE_ENABLE, 0)
+        if res != 'OK':
+            return res
 
     def getBaud(self):
-        return self.write(Message.GET_BAUD)
-
-    def scan(self):
-        return self.write(Message.SCAN)
-
-    def setModelNumber(self):
-        return self.write(Message.SET_MODEL_NUMBER)
+        res = self.readControlTableItem(self.CONTROL_TABLE.BAUD)
+        return res
 
     def getModelNumber(self):
-        return self.write(Message.GET_MODEL_NUMBER)
+        res = self.readControlTableItem(self.CONTROL_TABLE.BAUD)
+        return res
 
-    def setProtocol(self):
-        return self.write(Message.SET_PROTOCOL)
-
-    def setBaudrate(self):
-        return self.write(Message.SET_BAUDRATE)
+    def setBaudrate(self, value):
+        res = self.writeControlTableItem(self.CONTROL_TABLE.BAUD, value)
+        if res != 'OK':
+            return res
 
     def ledOn(self):
-        res = self.write(CONTROL_TABLE.LED, 1)
+        res = self.writeControlTableItem(self.CONTROL_TABLE.LED, 1)
         if res != 'OK':
             return res
 
     def ledOff(self):
-        res = self.write(CONTROL_TABLE.LED, 0)
+        res = self.writeControlTableItem(self.CONTROL_TABLE.LED, 0)
         if res != 'OK':
             return res
 
     def setOperationMode(self, operatingMode):
-        res = self.write(Message.SET_OPERATING_MODE, operatingMode)
-        return res
+        res = self.writeControlTableItem(self.CONTROL_TABLE.OPERATING_MODE, operatingMode)
+        if res != 'OK':
+            return res
 
     def setGoalPosition(self, value, unit=None):
-        unit = unit or self.unit
-        return self.write(Message.SET_GOAL_POSITION, value, unit)
+        # Need to do a unit conversion
+        # unit = unit or self.unit
+        res = self.writeControlTableItem(self.CONTROL_TABLE.GOAL_POSITION, value)
+        if res != 'OK':
+            return res
 
     def setPreciseGoalPosition(self, value, unit=None):
         unit = unit or self.unit
@@ -170,50 +151,44 @@ class XL430_W250_T(Servo):
 
     def getPresentPosition(self, unit=None):
         unit = unit or self.unit
-        msg = self.write(Message.GET_PRESENT_POSITION, unit)
-        if msg == 'undef':
-            return 'error'
-        self.position = int(msg.split('.')[0])
+        res = self.readControlTableItem(self.CONTROL_TABLE.PRESENT_POSITION)
+        if isinstance(res, int):
+            self.position = res
         return self.position
 
     def setGoalVelocity(self, value, unit=None):
         unit = unit or self.unit
-        return self.write(Message.SET_GOAL_VELOCITY, value, unit)
+        res = self.writeControlTableItem(self.CONTROL_TABLE.GOAL_VELOCITY, value)
+        if res != 'OK':
+            return res
 
     def getPresentVelocity(self, unit=None):
         unit = unit or self.unit
-        return self.write(Message.GET_PRESENT_VELOCITY, unit)
+        res = self.readControlTableItem(self.CONTROL_TABLE.PRESENT_VELOCITY)
+        return res
 
     def setGoalPwm(self, value, unit=None):
         unit = unit or self.unit
-        return self.write(Message.SET_GOAL_PWM, value, unit)
+        res = self.writeControlTableItem(self.CONTROL_TABLE.GOAL_PWM, value)
+        if res != 'OK':
+            return res
 
     def getPresentPwm(self, unit=None):
         unit = unit or self.unit
-        return self.write(Message.GET_PRESENT_PWM, unit)
-
-    def setGoalCurrent(self, unit=None):
-        unit = unit or self.unit
-        return self.write(Message.SET_GOAL_CURRENT)
-
-    def getPresentCurrent(self, unit=None):
-        unit = unit or self.unit
-        return self.write(Message.GET_PRESENT_CURRENT)
+        res = self.readControlTableItem(self.CONTROL_TABLE.PRESENT_PWM)
+        return res
 
     def getTorqueEnabledStat(self, unit=None):
         unit = unit or self.unit
-        return self.write(Message.GET_TORQUE_ENABLED_STAT)
+        res = self.readControlTableItem(self.CONTROL_TABLE.TORQUE_ENABLE)
+        return res
 
     def readControlTableItem(self, item):
         if not isinstance(item, tuple):
             return f"readControlTableItem takes a tuple, got {item}"
-        idx = item[0]
-        size = item[1]
-        return self.write(Message.READ_CONTROL_TABLE_ITEM, idx, size)
+        return self.protocol.read(self.id, *item)
 
     def writeControlTableItem(self, item, data):
         if not isinstance(item, tuple):
             return f"writeControlTableItem takes a tuple, got {item}"
-        idx = item[0]
-        size = item[1]
-        return self.write(Message.WRITE_CONTROL_TABLE_ITEM, idx, size, data)
+        return self.write(item, data)
