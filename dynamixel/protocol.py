@@ -198,7 +198,7 @@ class Protocol2(Protocol):
             return None
         length = 0
         # read in HEADER HEADER HEADER RESERVED ID LENGTH_LOW LENGTH_HIGH 55 ERR CRC_LOW CRC_HIGH
-        packet = self.uart.read(11)
+        packet = self.uart.read(self.uart.in_waiting)
         if packet is None:
             return "RX_TIMEOUT"
         else:
@@ -213,6 +213,9 @@ class Protocol2(Protocol):
                 t = self.uart.read(toRead)
                 if t is None:
                     return self.ERR_RX_FAILED_TO_RX_ENTIRE_PACKET
+                packet += list(t)
+                if self.uart.in_waiting:
+                    t = self.uart.read(self.uart.in_waiting)
                 packet += list(t)
                 return validationErrors(packet) or packet
         for i in range(len(packet)):
