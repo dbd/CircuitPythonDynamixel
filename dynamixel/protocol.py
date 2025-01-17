@@ -52,6 +52,7 @@ class Protocol1(Protocol):
 
 class Protocol2(Protocol):
     _instance = None
+    initialized = False
 
     INSTR_PING = 0x01
     INSTR_READ = 0x02
@@ -90,11 +91,13 @@ class Protocol2(Protocol):
 
     def __new__(cls, *args, **kwargs):
         if not cls._instance:
-            cls._instance = super(Protocol2, cls).__new__(cls, *args, **kwargs)
+            cls._instance = super(Protocol2, cls).__new__(cls)
         return cls._instance
 
     def __init__(self, *args, **kwargs):
-        super(Protocol2, self).__init__(*args, **kwargs)
+        if not self.initialized:
+            super(Protocol2, self).__init__(*args, **kwargs)
+        self.initialized = True
         self.STATUS_ERRORS = [
             None,
             self.ERR_RESULT_FAIL,
