@@ -199,6 +199,14 @@ class Protocol2(Protocol):
         length = 0
         # read in HEADER HEADER HEADER RESERVED ID LENGTH_LOW LENGTH_HIGH 55 ERR CRC_LOW CRC_HIGH
         packet = self.uart.read(self.uart.in_waiting)
+
+        # uncomment the following to see the actual hex, the status packet instr is 55 
+        # but will show up in list(packet) as 85 which is just confusing. You can also
+        # capture the send and receive in the dynamixel wizard if you plug on cable into
+        # a u2d2 and select View > Packet
+        # tp = [f'0x{i:02X}'for i in packet]
+        # print(f'raw response: {tp}')
+
         if packet is None:
             return "RX_TIMEOUT"
         else:
@@ -207,7 +215,7 @@ class Protocol2(Protocol):
             low, high = packet[5 : 6 + 1]
             length = int.from_bytes(bytes([low, high]), "little")
             if length + 7 == len(packet):
-                return validationErrors(packet) or self.OK # don't return zero because somethings may actually be zero
+                return validationErrors(packet) or packet
             else:
                 toRead = 11-(length + 1) # plus one because length include the instruction
                 t = self.uart.read(toRead)
