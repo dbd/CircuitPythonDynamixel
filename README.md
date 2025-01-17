@@ -19,11 +19,17 @@ Copy the dynamixel folder to `lib/` on your CircuitPython board. If you are shor
 ```python
 import time
 from dynamixel.devices import XL430_W250_T
-m = XL430_W250_T('rotation', 1)
+m = XL430_W250_T('roll', 1)
+n = XL430_W250_T('pitch', 2)
+o = XL430_W250_T('yaw', 3)
 while True:
     m.ledOff()
+    n.ledOff()
+    o.ledOff()
     time.sleep(.5)
     m.ledOn()
+    n.ledOn()
+    o.ledOn()
     time.sleep(.5)
 ```
 
