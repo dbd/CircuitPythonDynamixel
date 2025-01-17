@@ -243,7 +243,11 @@ class Protocol2(Protocol):
             [self.INSTR_READ] + addrLowHigh + lengthLowHigh + [0x00, 0x00]
         )
         packet = [ID] + pl + [self.INSTR_READ] + addrLowHigh + lengthLowHigh
-        return self.send(packet)
+        res = self.send(packet)
+        if res is None or isinstance(res, str):
+            return res
+        data = int.from_bytes(bytes(res[9:-2]), 'little')
+        return data
 
     def write(self, ID, addr, length, data):
         addrLowHigh = list(addr.to_bytes(2, "little"))
