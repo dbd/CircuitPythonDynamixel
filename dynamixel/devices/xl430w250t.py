@@ -1,6 +1,7 @@
 from dynamixel.protocol import Protocol2
 from dynamixel.servo import Servo
 
+
 class operatingMode:
     OP_VELOCITY = 1
     OP_POSITION = 3
@@ -38,8 +39,8 @@ class controlTable:
     MIN_POSITION_LIMIT = (52, 4)
     STARTUP_CONFIGURATION = (60, 1)
     SHUTDOWN = (63, 1)
-    TORQUE_ENABLE = (64, 	1)
-    LED = (65, 	1)
+    TORQUE_ENABLE = (64, 1)
+    LED = (65, 1)
     STATUS_RETURN_LEVEL = (68, 1)
     REGISTERED_INSTRUCTION = (69, 1)
     HARDWARE_ERROR_STATUS = (70, 1)
@@ -89,15 +90,15 @@ class XL430_W250_T(Servo):
     def ping(self):
         res = self.protocol.ping(self.id)
         return res
-    
+
     def torqueOn(self):
         res = self.writeControlTableItem(self.CONTROL_TABLE.TORQUE_ENABLE, 1)
-        if res != 'OK':
+        if res != "OK":
             return res
 
     def torqueOff(self):
         res = self.writeControlTableItem(self.CONTROL_TABLE.TORQUE_ENABLE, 0)
-        if res != 'OK':
+        if res != "OK":
             return res
 
     def getBaud(self):
@@ -110,29 +111,31 @@ class XL430_W250_T(Servo):
 
     def setBaudrate(self, value):
         res = self.writeControlTableItem(self.CONTROL_TABLE.BAUD, value)
-        if res != 'OK':
+        if res != "OK":
             return res
 
     def ledOn(self):
         res = self.writeControlTableItem(self.CONTROL_TABLE.LED, 1)
-        if res != 'OK':
+        if res != "OK":
             return res
 
     def ledOff(self):
         res = self.writeControlTableItem(self.CONTROL_TABLE.LED, 0)
-        if res != 'OK':
+        if res != "OK":
             return res
 
     def setOperationMode(self, operatingMode):
-        res = self.writeControlTableItem(self.CONTROL_TABLE.OPERATING_MODE, operatingMode)
-        if res != 'OK':
+        res = self.writeControlTableItem(
+            self.CONTROL_TABLE.OPERATING_MODE, operatingMode
+        )
+        if res != "OK":
             return res
 
     def setGoalPosition(self, value, unit=None):
         # Need to do a unit conversion
         # unit = unit or self.unit
         res = self.writeControlTableItem(self.CONTROL_TABLE.GOAL_POSITION, value)
-        if res != 'OK':
+        if res != "OK":
             return res
 
     def setPreciseGoalPosition(self, value, unit=None):
@@ -140,10 +143,10 @@ class XL430_W250_T(Servo):
         self.setGoalPosition(value, unit=unit)
         tries = 0
         while self.getPresentPosition(unit=unit) != value:
-            self.setGoalPosition(value+11, unit=unit)
+            self.setGoalPosition(value + 11, unit=unit)
             self.setGoalPosition(value, unit=unit)
             if tries >= 3:
-                print('failed to set precise position')
+                print("failed to set precise position")
                 break
             tries += 1
 
@@ -159,7 +162,7 @@ class XL430_W250_T(Servo):
     def setGoalVelocity(self, value, unit=None):
         unit = unit or self.unit
         res = self.writeControlTableItem(self.CONTROL_TABLE.GOAL_VELOCITY, value)
-        if res != 'OK':
+        if res != "OK":
             return res
 
     def getPresentVelocity(self, unit=None):
@@ -170,7 +173,7 @@ class XL430_W250_T(Servo):
     def setGoalPwm(self, value, unit=None):
         unit = unit or self.unit
         res = self.writeControlTableItem(self.CONTROL_TABLE.GOAL_PWM, value)
-        if res != 'OK':
+        if res != "OK":
             return res
 
     def getPresentPwm(self, unit=None):

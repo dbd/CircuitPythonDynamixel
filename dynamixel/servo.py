@@ -9,7 +9,7 @@ class Servo:
 
     def write(self, message, *args):
         return self.protocol.write(self.id, *message, *args)
-    
+
     def ping(self):
         assert False, "Not implemented"
 
@@ -46,50 +46,38 @@ class Servo:
     def setOperationMode(self, operatingMode):
         assert False, "Not implemented"
 
-
     def setGoalPosition(self, value, unit=None):
         assert False, "Not implemented"
-
 
     def setPreciseGoalPosition(self, value, unit=None):
         assert False, "Not implemented"
 
-
     def getPresentPosition(self, unit=None):
         assert False, "Not implemented"
-
 
     def setGoalVelocity(self, value, unit=None):
         assert False, "Not implemented"
 
-
     def getPresentVelocity(self, unit=None):
         assert False, "Not implemented"
-
 
     def setGoalPwm(self, value, unit=None):
         assert False, "Not implemented"
 
-
     def getPresentPwm(self, unit=None):
         assert False, "Not implemented"
-
 
     def setGoalCurrent(self, unit=None):
         assert False, "Not implemented"
 
-
     def getPresentCurrent(self, unit=None):
         assert False, "Not implemented"
-
 
     def getTorqueEnabledStat(self, unit=None):
         assert False, "Not implemented"
 
-
     def readControlTableItem(self, item):
         assert False, "Not implemented"
-
 
     def writeControlTableItem(self, item, data):
         assert False, "Not implemented"

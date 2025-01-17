@@ -5,7 +5,6 @@ import board
 from .utils import Lock
 
 
-
 class Protocol:
     BROADCAST = 254
     ERR_RX_CRC_MISMATCH = "ERR_RX_CRC_MISMATCH"
@@ -20,9 +19,11 @@ class Protocol:
     ERR_DATA_LIMIT_ERROR = "ERR_RESULT_FAIL"
     ERR_ACCESS_ERROR = "ERR_RESULT_FAIL"
 
-    OK = 'OK'
+    OK = "OK"
 
-    def __init__(self, tx_enable=board.D2, baudRate=1000000, tx=board.RX, rx=board.TX, timeout=1):
+    def __init__(
+        self, tx_enable=board.D2, baudRate=1000000, tx=board.RX, rx=board.TX, timeout=1
+    ):
         self.uart = busio.UART(tx, rx, baudrate=baudRate, timeout=timeout)
         lock = Lock()
         self.lock = lock
@@ -176,7 +177,7 @@ class Protocol2(Protocol):
         packet = self.updateLength(packet)
         packet = self.addChecksum(packet)
         # Packet at this point matches the official sdk
-        res = 'ERR'
+        res = "ERR"
         with self.lock:
             self.tx_enable.value = True
             time.sleep(0.01)
@@ -196,11 +197,12 @@ class Protocol2(Protocol):
             if err:
                 return self.STATUS_ERRORS[err]
             return None
+
         length = 0
         # read in HEADER HEADER HEADER RESERVED ID LENGTH_LOW LENGTH_HIGH 55 ERR CRC_LOW CRC_HIGH
         packet = self.uart.read(self.uart.in_waiting)
 
-        # uncomment the following to see the actual hex, the status packet instr is 55 
+        # uncomment the following to see the actual hex, the status packet instr is 55
         # but will show up in list(packet) as 85 which is just confusing. You can also
         # capture the send and receive in the dynamixel wizard if you plug on cable into
         # a u2d2 and select View > Packet
@@ -217,7 +219,9 @@ class Protocol2(Protocol):
             if length + 7 == len(packet):
                 return validationErrors(packet) or packet
             else:
-                toRead = 11-(length + 1) # plus one because length include the instruction
+                toRead = 11 - (
+                    length + 1
+                )  # plus one because length include the instruction
                 t = self.uart.read(toRead)
                 if t is None:
                     return self.ERR_RX_FAILED_TO_RX_ENTIRE_PACKET
@@ -254,7 +258,7 @@ class Protocol2(Protocol):
         res = self.send(packet)
         if res is None or isinstance(res, str):
             return res
-        data = int.from_bytes(bytes(res[9:-2]), 'little')
+        data = int.from_bytes(bytes(res[9:-2]), "little")
         return data
 
     def write(self, ID, addr, length, data):
