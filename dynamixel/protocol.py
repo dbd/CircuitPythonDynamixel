@@ -218,6 +218,22 @@ class Protocol2(Protocol):
             length = int.from_bytes(bytes([low, high]), "little")
             if length + 7 == len(packet):
                 return validationErrors(packet) or packet
+            if length < len(packet):
+                headers = []
+                for i in range(len(packet)):
+                    j = packet[i : i + 4]
+                    if len(j) == 4 and j[:3] == self.HEADERS and j[3] != 0xFD:
+                        headers.append(i)
+                if not self.uart.in_waiting:
+                    packets = [
+                        packet[
+                            headers[i] : (
+                                headers[i + 1] if i + 1 < len(headers) else None
+                            )
+                        ]
+                        for i in range(len(headers))
+                    ]
+                    return [validationErrors(packet) or packet for packet in packets]
             else:
                 toRead = 11 - (
                     length + 1
