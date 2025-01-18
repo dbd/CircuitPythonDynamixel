@@ -1,5 +1,5 @@
 from dynamixel.protocol import Protocol2
-from dynamixel.servo import Servo
+from dynamixel.servo import Servo, paramUnit
 
 
 class operatingMode:
@@ -127,30 +127,17 @@ class XL430_W250_T(Servo):
 
     def setGoalPosition(self, value, unit=None):
         # Need to do a unit conversion
-        # unit = unit or self.unit
+        unit = unit or self.unit
+        value = self.convertUnits(value, unit)
         res = self.writeControlTableItem(self.CONTROL_TABLE.GOAL_POSITION, value)
         if res != "OK":
             return res
-
-    def setPreciseGoalPosition(self, value, unit=None):
-        unit = unit or self.unit
-        self.setGoalPosition(value, unit=unit)
-        tries = 0
-        while self.getPresentPosition(unit=unit) != value:
-            self.setGoalPosition(value + 11, unit=unit)
-            self.setGoalPosition(value, unit=unit)
-            if tries >= 3:
-                print("failed to set precise position")
-                break
-            tries += 1
-
-        return self.write(Message.SET_GOAL_POSITION, value, unit)
 
     def getPresentPosition(self, unit=None):
         unit = unit or self.unit
         res = self.readControlTableItem(self.CONTROL_TABLE.PRESENT_POSITION)
         if isinstance(res, int):
-            res = self.convertUnits(res, unit)
+            res = self.convertRaw(res, unit)
             self.position = res
         return self.position
 

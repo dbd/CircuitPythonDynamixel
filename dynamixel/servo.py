@@ -22,6 +22,12 @@ class Servo:
         }
         return unitMap.get(unit, lambda raw: raw)(raw)
 
+    def convertRaw(self, raw, unit):
+        unitMap = {
+            paramUnit.UNIT_DEGREE: lambda raw: int((raw/self.resolution) * 360)
+        }
+        return unitMap.get(unit, lambda raw: raw)(raw)
+
     def read(self, addr, length):
         return self.protocol.read(self.id, addr, length)
 
@@ -74,7 +80,18 @@ class Servo:
         assert False, "Not implemented"
 
     def setPreciseGoalPosition(self, value, unit=None):
-        assert False, "Not implemented"
+        unit = unit or self.unit
+        self.setGoalPosition(value, unit=unit)
+        tries = 0
+        while self.getPresentPosition(unit=unit) != value:
+            self.setGoalPosition(value + 11, unit=unit)
+            self.setGoalPosition(value, unit=unit)
+            if tries >= 3:
+                print("failed to set precise position")
+                break
+            tries += 1
+
+        return self.write(Message.SET_GOAL_POSITION, value, unit)
 
     def getPresentPosition(self, unit=None):
         assert False, "Not implemented"
@@ -103,7 +120,7 @@ class Servo:
     def readControlTableItem(self, item):
         if not isinstance(item, tuple):
             return f"readControlTableItem takes a tuple, got {item}"
-        return self.read(self.id, *item)
+        return self.read(*item)
 
     def writeControlTableItem(self, item, data):
         if not isinstance(item, tuple):
