@@ -9,14 +9,6 @@ class operatingMode:
     OP_PWM = 16
 
 
-class paramUnit:
-    UNIT_RAW = 0
-    UNIT_PERCENT = 1
-    UNIT_RPM = 2
-    UNIT_DEGREE = 3
-    UNIT_MILLI_AMPERE = 4
-
-
 class controlTable:
     MODEL_NUMBER = (0, 2)
     MODEL_INFORMATION = (2, 4)
@@ -80,8 +72,10 @@ class XL430_W250_T(Servo):
         super(XL430_W250_T, self).__init__(*args, **kwargs)
         self.unit = unit
         self.protocol = Protocol2(**kwargs)
+        self.resolution = 4096
 
-    def reboot(self):
+
+    def clear(self):
         self.protocol.reboot(self.id)
 
     def setProtocolVersion(self, protocol):
@@ -156,42 +150,28 @@ class XL430_W250_T(Servo):
         unit = unit or self.unit
         res = self.readControlTableItem(self.CONTROL_TABLE.PRESENT_POSITION)
         if isinstance(res, int):
+            res = self.convertUnits(res, unit)
             self.position = res
         return self.position
 
-    def setGoalVelocity(self, value, unit=None):
-        unit = unit or self.unit
+    def setGoalVelocity(self, value):
         res = self.writeControlTableItem(self.CONTROL_TABLE.GOAL_VELOCITY, value)
         if res != "OK":
             return res
 
-    def getPresentVelocity(self, unit=None):
-        unit = unit or self.unit
+    def getPresentVelocity(self):
         res = self.readControlTableItem(self.CONTROL_TABLE.PRESENT_VELOCITY)
         return res
 
-    def setGoalPwm(self, value, unit=None):
-        unit = unit or self.unit
+    def setGoalPwm(self, value):
         res = self.writeControlTableItem(self.CONTROL_TABLE.GOAL_PWM, value)
         if res != "OK":
             return res
 
-    def getPresentPwm(self, unit=None):
-        unit = unit or self.unit
+    def getPresentPwm(self):
         res = self.readControlTableItem(self.CONTROL_TABLE.PRESENT_PWM)
         return res
 
-    def getTorqueEnabledStat(self, unit=None):
-        unit = unit or self.unit
+    def getTorqueEnabled(self):
         res = self.readControlTableItem(self.CONTROL_TABLE.TORQUE_ENABLE)
         return res
-
-    def readControlTableItem(self, item):
-        if not isinstance(item, tuple):
-            return f"readControlTableItem takes a tuple, got {item}"
-        return self.protocol.read(self.id, *item)
-
-    def writeControlTableItem(self, item, data):
-        if not isinstance(item, tuple):
-            return f"writeControlTableItem takes a tuple, got {item}"
-        return self.write(item, data)

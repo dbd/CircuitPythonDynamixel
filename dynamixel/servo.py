@@ -1,3 +1,11 @@
+class paramUnit:
+    UNIT_RAW = 0
+    UNIT_PERCENT = 1
+    UNIT_RPM = 2
+    UNIT_DEGREE = 3
+    UNIT_MILLI_AMPERE = 4
+
+
 class Servo:
     def __init__(self, name, servo_id, **kwargs):
         self.name = name
@@ -6,9 +14,28 @@ class Servo:
         self.position = None
         self.initial_position = None
         self.protocol = None
+        self.resolution = None
+
+    def convertUnits(self, raw, unit):
+        unitMap = {
+            paramUnit.UNIT_DEGREE: lambda raw: int((raw/360) * self.resolution)
+        }
+        return unitMap.get(unit, lambda raw: raw)(raw)
+
+    def read(self, addr, length):
+        return self.protocol.read(self.id, addr, length)
 
     def write(self, message, *args):
         return self.protocol.write(self.id, *message, *args)
+
+    def reboot(self):
+        self.protocol.reboot(self.id)
+
+    def clear(self, position=False, error=False):
+        if self.protocol.VERSION == '2.0':
+            self.protocol.clear(self.id, position=position, error=error)
+        else:
+            return "Not supported on Protocol v1.0"
 
     def ping(self):
         assert False, "Not implemented"
@@ -20,9 +47,6 @@ class Servo:
         assert False, "Not implemented"
 
     def getBaud(self):
-        assert False, "Not implemented"
-
-    def scan(self):
         assert False, "Not implemented"
 
     def setModelNumber(self):
@@ -77,7 +101,11 @@ class Servo:
         assert False, "Not implemented"
 
     def readControlTableItem(self, item):
-        assert False, "Not implemented"
+        if not isinstance(item, tuple):
+            return f"readControlTableItem takes a tuple, got {item}"
+        return self.read(self.id, *item)
 
     def writeControlTableItem(self, item, data):
-        assert False, "Not implemented"
+        if not isinstance(item, tuple):
+            return f"writeControlTableItem takes a tuple, got {item}"
+        return self.write(item, data)
