@@ -10,7 +10,7 @@ Everything should be part of the standard circuitpython lib
   * busio
 
 # Getting Started
-This is designed for [Adafruit Metro ESP32-S3](https://learn.adafruit.com/adafruit-metro-esp32-s3). An HAT that supports out of the box UART and power with only a single cable is also available [here](https://github.com/dbd/AdafruitMetroESP32-DynamixelHat/tree/main).
+This is designed for [Adafruit Metro ESP32-S3](https://learn.adafruit.com/adafruit-metro-esp32-s3). A HAT that supports out of the box UART and power with only a single cable is also available [here](https://github.com/dbd/AdafruitMetroESP32-DynamixelHat/tree/main).
 
 Copy the dynamixel folder to `lib/` on your CircuitPython board. If you are short on space then copy all the files in `dynamixel/` and only copy the devices that you are using.
 
