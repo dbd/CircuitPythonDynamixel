@@ -195,7 +195,8 @@ class Protocol2(Protocol):
                 return self.ERR_RX_CRC_MISMATCH
             err = packet[8]
             if err:
-                return self.STATUS_ERRORS[err]
+                bit = ''.join(list(bin(err))[::-1][:-2]).index('1')
+                return self.STATUS_ERRORS[bit]
             return None
 
         length = 0
@@ -279,7 +280,10 @@ class Protocol2(Protocol):
 
     def write(self, ID, addr, length, data):
         addrLowHigh = list(addr.to_bytes(2, "little"))
-        dataLowHigh = list(data.to_bytes(length, "little"))
+        if not isinstance(data, list):
+            dataLowHigh = list(data.to_bytes(length, "little"))
+        else:
+            dataLowHigh = data
         pl = self.packetLength(
             [self.INSTR_WRITE] + addrLowHigh + dataLowHigh + [0x00, 0x00]
         )
