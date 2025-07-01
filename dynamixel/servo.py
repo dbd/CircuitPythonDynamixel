@@ -15,6 +15,7 @@ class Servo:
         self.initial_position = None
         self.protocol = None
         self.resolution = None
+        self.moving = False
 
     def convertUnits(self, raw, unit):
         unitMap = {
