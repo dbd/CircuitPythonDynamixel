@@ -20,7 +20,7 @@ class Lock:
         self.locked = False
 
 
-def twosComplement(value: int, length: int):
+def twosComplement(value: int, length: int) -> int:
     """Compute the 2's complement of int value
 
     Given an unsigned integer return signed value.
@@ -35,10 +35,6 @@ def twosComplement(value: int, length: int):
     :returns: Signed integer
     :rtype: int
     """
-    maxInt = int.from_bytes(bytes([0xFF] * length), "little")
-    if value < 0:
-        maxInt += value
-        return list(maxInt.to_bytes(length, "little"))
     width = length * 8
     sign_bit = 1 << (width - 1)
     if value & sign_bit:
