@@ -1,3 +1,6 @@
+from dynamixel.protocol import Protocol1, Protocol2, Response
+
+
 class paramUnit:
     UNIT_RAW = 0
     UNIT_PERCENT = 1
@@ -7,123 +10,107 @@ class paramUnit:
 
 
 class Servo:
-    def __init__(self, name, servo_id, **kwargs):
+    def __init__(self, name: str, servo_id: int, **kwargs):
         self.name = name
         self.id = servo_id
         self.torque = False
         self.position = None
         self.initial_position = None
-        self.protocol = None
+        self.protocol: Protocol2 = None
         self.resolution = None
         self.moving = False
+        _ = kwargs
 
-    def convertUnits(self, raw, unit):
+    def convertUnits(self, raw: int, unit: int) -> int:
         unitMap = {
             paramUnit.UNIT_DEGREE: lambda raw: int((raw / 360) * self.resolution)
         }
         return unitMap.get(unit, lambda raw: raw)(raw)
 
-    def convertRaw(self, raw, unit):
+    def convertRaw(self, raw: int, unit: int) -> int:
         unitMap = {
             paramUnit.UNIT_DEGREE: lambda raw: int((raw / self.resolution) * 360)
         }
         return unitMap.get(unit, lambda raw: raw)(raw)
 
-    def read(self, addr, length):
+    def read(self, addr: int, length: int) -> Response:
         return self.protocol.read(self.id, addr, length)
 
-    def write(self, message, *args):
+    def write(self, message: tuple, *args) -> Response:
         return self.protocol.write(self.id, *message, *args)
 
     def reboot(self):
         self.protocol.reboot(self.id)
 
-    def clear(self, position=False, error=False):
+    def clear(self, position: bool = False, error: bool = False):
         if self.protocol.VERSION == "2.0":
             self.protocol.clear(self.id, position=position, error=error)
         else:
             return "Not supported on Protocol v1.0"
 
-    def ping(self):
-        assert False, "Not implemented"
+    def ping(self) -> Response:
+        return Response(None, "Not implemented")
 
-    def torqueOn(self):
-        assert False, "Not implemented"
+    def torqueOn(self) -> Response:
+        return Response(None, "Not implemented")
 
-    def torqueOff(self):
-        assert False, "Not implemented"
+    def torqueOff(self) -> Response:
+        return Response(None, "Not implemented")
 
-    def getBaud(self):
-        assert False, "Not implemented"
+    def getBaud(self) -> Response:
+        return Response(None, "Not implemented")
 
-    def setModelNumber(self):
-        assert False, "Not implemented"
+    def setModelNumber(self) -> Response:
+        return Response(None, "Not implemented")
 
-    def getModelNumber(self):
-        assert False, "Not implemented"
+    def getModelNumber(self) -> Response:
+        return Response(None, "Not implemented")
 
-    def setProtocol(self):
-        assert False, "Not implemented"
+    def setProtocol(self) -> Response:
+        return Response(None, "Not implemented")
 
-    def setBaudrate(self):
-        assert False, "Not implemented"
+    def setBaudrate(self, baud: int) -> Response:
+        return Response(None, "Not implemented")
 
-    def ledOn(self):
-        assert False, "Not implemented"
+    def ledOn(self) -> Response:
+        return Response(None, "Not implemented")
 
-    def ledOff(self):
-        assert False, "Not implemented"
+    def ledOff(self) -> Response:
+        return Response(None, "Not implemented")
 
-    def setOperationMode(self, operatingMode):
-        assert False, "Not implemented"
+    def setOperationMode(self, operatingMode) -> Response:
+        return Response(None, "Not implemented")
 
-    def setGoalPosition(self, value, unit=None):
-        assert False, "Not implemented"
+    def setGoalPosition(self, value, unit=None) -> Response:
+        return Response(None, "Not implemented")
 
-    def setPreciseGoalPosition(self, value, unit=None):
-        unit = unit or self.unit
-        self.setGoalPosition(value, unit=unit)
-        tries = 0
-        while self.getPresentPosition(unit=unit) != value:
-            self.setGoalPosition(value + 11, unit=unit)
-            self.setGoalPosition(value, unit=unit)
-            if tries >= 3:
-                print("failed to set precise position")
-                break
-            tries += 1
+    def getPresentPosition(self, unit=None) -> Response:
+        return Response(None, "Not implemented")
 
-        return self.write(Message.SET_GOAL_POSITION, value, unit)
+    def setGoalVelocity(self, value) -> Response:
+        return Response(None, "Not implemented")
 
-    def getPresentPosition(self, unit=None):
-        assert False, "Not implemented"
+    def getPresentVelocity(self) -> Response:
+        return Response(None, "Not implemented")
 
-    def setGoalVelocity(self, value, unit=None):
-        assert False, "Not implemented"
+    def setGoalPwm(self, value) -> Response:
+        return Response(None, "Not implemented")
 
-    def getPresentVelocity(self, unit=None):
-        assert False, "Not implemented"
+    def getPresentPwm(self) -> Response:
+        return Response(None, "Not implemented")
 
-    def setGoalPwm(self, value, unit=None):
-        assert False, "Not implemented"
+    def setGoalCurrent(self) -> Response:
+        return Response(None, "Not implemented")
 
-    def getPresentPwm(self, unit=None):
-        assert False, "Not implemented"
+    def getPresentCurrent(self) -> Response:
+        return Response(None, "Not implemented")
 
-    def setGoalCurrent(self, unit=None):
-        assert False, "Not implemented"
-
-    def getPresentCurrent(self, unit=None):
-        assert False, "Not implemented"
-
-    def getTorqueEnabledStat(self, unit=None):
-        assert False, "Not implemented"
-
-    def readControlTableItem(self, item):
+    def readControlTableItem(self, item) -> Response:
         if not isinstance(item, tuple):
-            return f"readControlTableItem takes a tuple, got {item}"
+            return Response(None, f"readControlTableItem takes a tuple, got {item}")
         return self.read(*item)
 
-    def writeControlTableItem(self, item, data):
+    def writeControlTableItem(self, item, data) -> Response:
         if not isinstance(item, tuple):
-            return f"writeControlTableItem takes a tuple, got {item}"
+            return Response(None, f"writeControlTableItem takes a tuple, got {item}")
         return self.write(item, data)
