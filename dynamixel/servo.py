@@ -19,13 +19,13 @@ class Servo:
 
     def convertUnits(self, raw, unit):
         unitMap = {
-            paramUnit.UNIT_DEGREE: lambda raw: int((raw/360) * self.resolution)
+            paramUnit.UNIT_DEGREE: lambda raw: int((raw / 360) * self.resolution)
         }
         return unitMap.get(unit, lambda raw: raw)(raw)
 
     def convertRaw(self, raw, unit):
         unitMap = {
-            paramUnit.UNIT_DEGREE: lambda raw: int((raw/self.resolution) * 360)
+            paramUnit.UNIT_DEGREE: lambda raw: int((raw / self.resolution) * 360)
         }
         return unitMap.get(unit, lambda raw: raw)(raw)
 
@@ -39,7 +39,7 @@ class Servo:
         self.protocol.reboot(self.id)
 
     def clear(self, position=False, error=False):
-        if self.protocol.VERSION == '2.0':
+        if self.protocol.VERSION == "2.0":
             self.protocol.clear(self.id, position=position, error=error)
         else:
             return "Not supported on Protocol v1.0"

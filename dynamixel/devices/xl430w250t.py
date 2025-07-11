@@ -83,8 +83,10 @@ class XL430_W250_T(Servo):
             self.getPresentPosition()
 
             self.moving = bool(self.readControlTableItem(self.CONTROL_TABLE.MOVING))
-            self.torqueEnabled = bool(self.readControlTableItem(self.CONTROL_TABLE.TORQUE_ENABLE))
-            await asyncio.sleep(.1)
+            self.torqueEnabled = bool(
+                self.readControlTableItem(self.CONTROL_TABLE.TORQUE_ENABLE)
+            )
+            await asyncio.sleep(0.1)
 
     def clear(self):
         self.protocol.reboot(self.id)
@@ -135,7 +137,6 @@ class XL430_W250_T(Servo):
         )
         if res != "OK":
             return res
-
 
     def convertNegative(self, value, length):
         return utils.twosComplement(value, length)

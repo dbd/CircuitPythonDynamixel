@@ -29,12 +29,12 @@ def twosComplement(value, length):
     :returns: Signed integer
     :rtype: int
     """
-    maxInt = int.from_bytes(bytes([0xFF]*length), 'little')
+    maxInt = int.from_bytes(bytes([0xFF] * length), "little")
     if value < 0:
         maxInt += value
-        return list(maxInt.to_bytes(length, 'little'))
+        return list(maxInt.to_bytes(length, "little"))
     width = length * 8
     sign_bit = 1 << (width - 1)
     if value & sign_bit:
-        value -= (1 << width)
+        value -= 1 << width
     return value
