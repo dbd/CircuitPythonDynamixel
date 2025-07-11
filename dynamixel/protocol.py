@@ -22,7 +22,12 @@ class Protocol:
     OK = "OK"
 
     def __init__(
-        self, tx_enable=board.D2, baudRate=1000000, tx=board.RX, rx=board.TX, timeout=1
+        self,
+        tx_enable: board.Pin = board.D2,
+        baudRate: int = 1000000,
+        tx: board.Pin = board.RX,
+        rx: board.Pin = board.TX,
+        timeout: int = 1,
     ):
         self.uart = busio.UART(tx, rx, baudrate=baudRate, timeout=timeout)
         lock = Lock()
@@ -47,7 +52,7 @@ class Protocol1(Protocol):
     def __init__(self):
         super(Protocol1, self).__init__()
 
-    def checksum(packet):
+    def checksum(self, packet: list):
         pass
 
 
@@ -110,7 +115,7 @@ class Protocol2(Protocol):
             self.ERR_ACCESS_ERROR,
         ]
 
-    def checksum(self, packet):
+    def checksum(self, packet: list):
         crc_accum = 0
         crc_table = []
         polynomial = 0x8005  # CRC-16-ANSI (x^16 + x^15 + x^2 + 1)
@@ -134,13 +139,13 @@ class Protocol2(Protocol):
             crc_accum = ((crc_accum << 8) ^ crc_table[i]) & 0xFFFF
         return list(crc_accum.to_bytes(2, "little"))
 
-    def packetLength(self, packet):
+    def packetLength(self, packet: list):
         # Length is the instruction + params + CRC
         # simplified to num params + 3
         pl = len(packet)
         return list(pl.to_bytes(2, "little"))
 
-    def addStuffing(self, packet):
+    def addStuffing(self, packet: list):
         padIndices = []
         for i in range(len(packet)):
             j = packet[i : i + 4]
@@ -152,19 +157,19 @@ class Protocol2(Protocol):
             packet.insert(padIndex, 0xFD)
         return packet
 
-    def updateLength(self, packet):
+    def updateLength(self, packet:list):
         pl = self.packetLength(packet[7:] + [0x00, 0x00])
         for index, value in zip(self.Packet.LENGTH, pl):
             packet[index - 1] = value
         return packet
 
-    def addHeaders(self, packet):
+    def addHeaders(self, packet:list):
         return self.HEADERS + self.RESERVED + packet
 
-    def addChecksum(self, packet):
+    def addChecksum(self, packet:list):
         return packet + self.checksum(packet + [0x00, 0x00])
 
-    def send(self, packet):
+    def send(self, packet: list):
         """Transmission Process
 
         1. Generate basic packet structure including required parameters.
@@ -189,7 +194,7 @@ class Protocol2(Protocol):
         return res
 
     def receive(self):
-        def validationErrors(packet):
+        def validationErrors(packet: list):
             crc = self.checksum(packet[:-2] + [0x00, 0x00])
             if crc != packet[-2:]:
                 return self.ERR_RX_CRC_MISMATCH
@@ -260,12 +265,12 @@ class Protocol2(Protocol):
 
         return self.ERR_RX_ERROR
 
-    def ping(self, ID):
+    def ping(self, ID: int):
         length = self.packetLength([self.INSTR_PING, 0x00, 0x00])
         packet = [ID] + length + [self.INSTR_PING]
         return self.send(packet)
 
-    def read(self, ID, addr, length):
+    def read(self, ID:int, addr:int, length:int):
         addrLowHigh = list(addr.to_bytes(2, "little"))
         lengthLowHigh = list(length.to_bytes(2, "little"))
         pl = self.packetLength(
@@ -278,7 +283,7 @@ class Protocol2(Protocol):
         data = int.from_bytes(bytes(res[9:-2]), "little")
         return data
 
-    def write(self, ID, addr, length, data):
+    def write(self, ID:int, addr:int, length:int, data:int):
         addrLowHigh = list(addr.to_bytes(2, "little"))
         if not isinstance(data, list):
             dataLowHigh = list(data.to_bytes(length, "little"))
@@ -290,7 +295,7 @@ class Protocol2(Protocol):
         packet = [ID] + pl + [self.INSTR_WRITE] + addrLowHigh + dataLowHigh
         return self.send(packet)
 
-    def regWrite(self, ID, addr, length, data):
+    def regWrite(self, ID:int, addr:int, length:int, data:int):
         addrLowHigh = list(addr.to_bytes(2, "little"))
         dataLowHigh = list(data.to_bytes(length, "little"))
         pl = self.packetLength(
@@ -299,13 +304,13 @@ class Protocol2(Protocol):
         packet = [ID] + pl + [self.INSTR_REG_WRITE] + addrLowHigh + dataLowHigh
         return self.send(packet)
 
-    def action(self, ID):
+    def action(self, ID:int):
         length = self.packetLength([self.INSTR_ACTION, 0x00, 0x00])
         packet = [ID] + length + [self.INSTR_ACTION]
         return self.send(packet)
 
     def factoryReset(
-        self, ID, resetAll=False, resetAllExceptId=False, resetAllExceptIdBaud=False
+            self, ID:int, resetAll:bool=False, resetAllExceptId:bool=False, resetAllExceptIdBaud:bool=False
     ):
         p = 0x00
         if resetAll:
@@ -320,12 +325,12 @@ class Protocol2(Protocol):
         packet = [ID] + length + [self.INSTR_FACTORY_RESET, p]
         res = self.send(packet)
 
-    def reboot(self, ID):
+    def reboot(self, ID:int):
         length = self.packetLength([self.INSTR_REBOOT, 0x00, 0x00])
         packet = [ID] + length + [self.INSTR_REBOOT]
         return self.send(packet)
 
-    def clear(self, ID, position=False, error=False):
+    def clear(self, ID:int, position:bool=False, error:bool=False):
         p = 0x00
         if position:
             p = 0x01
@@ -339,7 +344,7 @@ class Protocol2(Protocol):
         packet = [ID] + pl + [self.INSTR_CLEAR, p] + d
         return self.send(packet)
 
-    def controlTableBackup(self, ID, store=False, restore=False):
+    def controlTableBackup(self, ID:int, store:bool=False, restore:bool=False):
         p = 0x00
         if store:
             p = [0x01, 0x43, 0x54, 0x52, 0x4C]
@@ -351,7 +356,7 @@ class Protocol2(Protocol):
         packet = [ID] + pl + [self.INSTR_CONTROL_TABLE_BACKUP] + p
         return self.send(packet)
 
-    def syncRead(self, addr, length, ids):
+    def syncRead(self, addr:int, length:int, ids:list):
         p = []
         addrLowHigh = list(addr.to_bytes(2, "little"))
         lengthLowHigh = list(length.to_bytes(2, "little"))
@@ -368,7 +373,7 @@ class Protocol2(Protocol):
         )
         return self.send(packet)
 
-    def syncWrite(self, addr, length, values):
+    def syncWrite(self, addr:int, length:int, values: list):
         """
         Example call: p.syncWrite(116, 4, [(1, 150), (2, 170)])
         set value at 116 which is 4 bytes to 150 for motor 1 and 170 to motor 2
@@ -392,7 +397,7 @@ class Protocol2(Protocol):
         )
         return self.send(packet)
 
-    def fastSyncRead(self, addr, length, ids):
+    def fastSyncRead(self, addr:int, length:int, ids:list):
         addrLowHigh = list(addr.to_bytes(2, "little"))
         lengthLowHigh = list(length.to_bytes(2, "little"))
         pl = self.packetLength(
@@ -412,7 +417,7 @@ class Protocol2(Protocol):
         )
         return self.send(packet)
 
-    def bulkRead(self, values):
+    def bulkRead(self, values:list):
         """
         Example call: p.bulkRead(116, 4, [(1, 150), (2, 170)])
         set value at 116 which is 4 bytes to 150 for motor 1 and 170 to motor 2
@@ -426,7 +431,7 @@ class Protocol2(Protocol):
         packet = [self.BROADCAST] + pl + [self.INSTR_BULK_READ] + p
         return self.send(packet)
 
-    def bulkWrite(self, values):
+    def bulkWrite(self, values:list):
         p = []
         for ID, addr, length, data in values:
             p.append(ID)
@@ -437,7 +442,7 @@ class Protocol2(Protocol):
         packet = [self.BROADCAST] + pl + [self.INSTR_BULK_WRITE] + p
         return self.send(packet)
 
-    def fastBulkRead(self, values):
+    def fastBulkRead(self, values:list):
         """
         Example call: p.bulkRead(116, 4, [(1, 150), (2, 170)])
         set value at 116 which is 4 bytes to 150 for motor 1 and 170 to motor 2
