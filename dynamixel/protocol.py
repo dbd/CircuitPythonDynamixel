@@ -5,11 +5,12 @@ import board
 from .utils import Lock
 
 
-class Protocol:
-    BROADCAST = 254
+class Error:
+    ERR_RX_ERROR = "ERR_RX"
     ERR_RX_CRC_MISMATCH = "ERR_RX_CRC_MISMATCH"
     ERR_RX_FAILED_TO_RX_ENTIRE_PACKET = "ERR_RX_FAILED_TO_RX_ENTIRE_PACKET"
     ERR_RX_NO_RESPONSE = "ERR_RX_NO_RESPONSE"
+    ERR_RX_TIMEOUT = "ERR_RX_TIMEOUT"
 
     ERR_RESULT_FAIL = "ERR_RESULT_FAIL"
     ERR_INSTR_ERROR = "ERR_INSTR_ERROR"
@@ -19,6 +20,23 @@ class Protocol:
     ERR_DATA_LIMIT_ERROR = "ERR_DATA_LIMIT_ERROR"
     ERR_ACCESS_ERROR = "ERR_ACCESS_ERROR"
 
+    OK = "OK"
+
+
+class Response:
+    def __init__(self, data, err):
+        self.data = data
+        self.err = err
+
+    @property
+    def ok(self):
+        if isinstance(self.err, list):
+            return all(err == Error.OK for err in self.err)
+        return self.err == Error.OK
+
+
+class Protocol:
+    BROADCAST = 254
     OK = "OK"
 
     def __init__(
@@ -106,16 +124,16 @@ class Protocol2(Protocol):
         self.initialized = True
         self.STATUS_ERRORS = [
             None,
-            self.ERR_RESULT_FAIL,
-            self.ERR_INSTR_ERROR,
-            self.ERR_CRC_ERR,
-            self.ERR_DATA_RANGE_ERROR,
-            self.ERR_DATA_LENGTH_ERROR,
-            self.ERR_DATA_LIMIT_ERROR,
-            self.ERR_ACCESS_ERROR,
+            Error.ERR_RESULT_FAIL,
+            Error.ERR_INSTR_ERROR,
+            Error.ERR_CRC_ERR,
+            Error.ERR_DATA_RANGE_ERROR,
+            Error.ERR_DATA_LENGTH_ERROR,
+            Error.ERR_DATA_LIMIT_ERROR,
+            Error.ERR_ACCESS_ERROR,
         ]
 
-    def checksum(self, packet: list):
+    def checksum(self, packet: list) -> list:
         crc_accum = 0
         crc_table = []
         polynomial = 0x8005  # CRC-16-ANSI (x^16 + x^15 + x^2 + 1)
@@ -139,13 +157,13 @@ class Protocol2(Protocol):
             crc_accum = ((crc_accum << 8) ^ crc_table[i]) & 0xFFFF
         return list(crc_accum.to_bytes(2, "little"))
 
-    def packetLength(self, packet: list):
+    def packetLength(self, packet: list) -> list:
         # Length is the instruction + params + CRC
         # simplified to num params + 3
         pl = len(packet)
         return list(pl.to_bytes(2, "little"))
 
-    def addStuffing(self, packet: list):
+    def addStuffing(self, packet: list) -> list:
         padIndices = []
         for i in range(len(packet)):
             j = packet[i : i + 4]
@@ -157,19 +175,19 @@ class Protocol2(Protocol):
             packet.insert(padIndex, 0xFD)
         return packet
 
-    def updateLength(self, packet:list):
+    def updateLength(self, packet: list) -> list:
         pl = self.packetLength(packet[7:] + [0x00, 0x00])
         for index, value in zip(self.Packet.LENGTH, pl):
             packet[index - 1] = value
         return packet
 
-    def addHeaders(self, packet:list):
+    def addHeaders(self, packet: list) -> list:
         return self.HEADERS + self.RESERVED + packet
 
-    def addChecksum(self, packet:list):
+    def addChecksum(self, packet: list) -> list:
         return packet + self.checksum(packet + [0x00, 0x00])
 
-    def send(self, packet: list):
+    def send(self, packet: list) -> Response:
         """Transmission Process
 
         1. Generate basic packet structure including required parameters.
@@ -182,7 +200,6 @@ class Protocol2(Protocol):
         packet = self.updateLength(packet)
         packet = self.addChecksum(packet)
         # Packet at this point matches the official sdk
-        res = "ERR"
         with self.lock:
             self.tx_enable.value = True
             time.sleep(0.01)
@@ -193,16 +210,16 @@ class Protocol2(Protocol):
             self.uart.reset_input_buffer()
         return res
 
-    def receive(self):
+    def receive(self) -> Response:
         def validationErrors(packet: list):
             crc = self.checksum(packet[:-2] + [0x00, 0x00])
             if crc != packet[-2:]:
-                return self.ERR_RX_CRC_MISMATCH
+                return Error.ERR_RX_CRC_MISMATCH
             err = packet[8]
             if err:
                 bit = "".join(list(bin(err))[::-1][:-2]).index("1")
                 return self.STATUS_ERRORS[bit]
-            return None
+            return Error.OK
 
         length = 0
         # read in HEADER HEADER HEADER RESERVED ID LENGTH_LOW LENGTH_HIGH 55 ERR CRC_LOW CRC_HIGH
@@ -216,14 +233,14 @@ class Protocol2(Protocol):
         # print(f'raw response: {tp}')
 
         if packet is None:
-            return "RX_TIMEOUT"
+            return Response(None, Error.ERR_RX_TIMEOUT)
         else:
             packet = list(packet)
         if packet[:3] == self.HEADERS:
             low, high = packet[5 : 6 + 1]
             length = int.from_bytes(bytes([low, high]), "little")
             if length + 7 == len(packet):
-                return validationErrors(packet) or packet
+                return Response(packet, validationErrors(packet))
             if length < len(packet):
                 headers = []
                 for i in range(len(packet)):
@@ -239,38 +256,40 @@ class Protocol2(Protocol):
                         ]
                         for i in range(len(headers))
                     ]
-                    return [validationErrors(packet) or packet for packet in packets]
+                    return Response(
+                        packets, [validationErrors(packet) for packet in packets]
+                    )
             else:
                 toRead = 11 - (
                     length + 1
                 )  # plus one because length include the instruction
                 t = self.uart.read(toRead)
                 if t is None:
-                    return self.ERR_RX_FAILED_TO_RX_ENTIRE_PACKET
+                    return Response(t, Error.ERR_RX_FAILED_TO_RX_ENTIRE_PACKET)
                 packet += list(t)
                 if self.uart.in_waiting:
                     t = self.uart.read(self.uart.in_waiting)
                 packet += list(t)
-                return validationErrors(packet) or packet
+                return Response(packet, validationErrors(packet))
         for i in range(len(packet)):
             j = packet[i : i + 4]
             if len(j) == 4 and j[:3] == self.HEADERS and j[3] != 0xFD:
                 break
         else:
             if not self.uart.in_waiting:
-                return self.ERR_RX_NO_RESPONSE
+                return Response(packet, Error.ERR_RX_NO_RESPONSE)
             packet = list(self.uart.read(self.uart.in_waiting))
         if packet:
-            return validationErrors(packet) or packet
+            return Response(packet, validationErrors(packet))
 
-        return self.ERR_RX_ERROR
+        return Response(None, Error.ERR_RX_ERROR)
 
-    def ping(self, ID: int):
+    def ping(self, ID: int) -> Response:
         length = self.packetLength([self.INSTR_PING, 0x00, 0x00])
         packet = [ID] + length + [self.INSTR_PING]
         return self.send(packet)
 
-    def read(self, ID:int, addr:int, length:int):
+    def read(self, ID: int, addr: int, length: int) -> Response:
         addrLowHigh = list(addr.to_bytes(2, "little"))
         lengthLowHigh = list(length.to_bytes(2, "little"))
         pl = self.packetLength(
@@ -278,12 +297,12 @@ class Protocol2(Protocol):
         )
         packet = [ID] + pl + [self.INSTR_READ] + addrLowHigh + lengthLowHigh
         res = self.send(packet)
-        if res is None or isinstance(res, str):
+        if not res.ok:
             return res
-        data = int.from_bytes(bytes(res[9:-2]), "little")
-        return data
+        data = int.from_bytes(bytes(res.data[9:-2]), "little")
+        return Response(data, Error.OK)
 
-    def write(self, ID:int, addr:int, length:int, data:int):
+    def write(self, ID: int, addr: int, length: int, data: int) -> Response:
         addrLowHigh = list(addr.to_bytes(2, "little"))
         if not isinstance(data, list):
             dataLowHigh = list(data.to_bytes(length, "little"))
@@ -295,7 +314,7 @@ class Protocol2(Protocol):
         packet = [ID] + pl + [self.INSTR_WRITE] + addrLowHigh + dataLowHigh
         return self.send(packet)
 
-    def regWrite(self, ID:int, addr:int, length:int, data:int):
+    def regWrite(self, ID: int, addr: int, length: int, data: int) -> Response:
         addrLowHigh = list(addr.to_bytes(2, "little"))
         dataLowHigh = list(data.to_bytes(length, "little"))
         pl = self.packetLength(
@@ -304,14 +323,18 @@ class Protocol2(Protocol):
         packet = [ID] + pl + [self.INSTR_REG_WRITE] + addrLowHigh + dataLowHigh
         return self.send(packet)
 
-    def action(self, ID:int):
+    def action(self, ID: int) -> Response:
         length = self.packetLength([self.INSTR_ACTION, 0x00, 0x00])
         packet = [ID] + length + [self.INSTR_ACTION]
         return self.send(packet)
 
     def factoryReset(
-            self, ID:int, resetAll:bool=False, resetAllExceptId:bool=False, resetAllExceptIdBaud:bool=False
-    ):
+        self,
+        ID: int,
+        resetAll: bool = False,
+        resetAllExceptId: bool = False,
+        resetAllExceptIdBaud: bool = False,
+    ) -> Response:
         p = 0x00
         if resetAll:
             p = 0xFF
@@ -323,14 +346,14 @@ class Protocol2(Protocol):
             return 0
         length = self.packetLength([self.INSTR_FACTORY_RESET, p, 0x00, 0x00])
         packet = [ID] + length + [self.INSTR_FACTORY_RESET, p]
-        res = self.send(packet)
+        return self.send(packet)
 
-    def reboot(self, ID:int):
+    def reboot(self, ID: int) -> Response:
         length = self.packetLength([self.INSTR_REBOOT, 0x00, 0x00])
         packet = [ID] + length + [self.INSTR_REBOOT]
         return self.send(packet)
 
-    def clear(self, ID:int, position:bool=False, error:bool=False):
+    def clear(self, ID: int, position: bool = False, error: bool = False) -> Response:
         p = 0x00
         if position:
             p = 0x01
@@ -344,20 +367,21 @@ class Protocol2(Protocol):
         packet = [ID] + pl + [self.INSTR_CLEAR, p] + d
         return self.send(packet)
 
-    def controlTableBackup(self, ID:int, store:bool=False, restore:bool=False):
+    def controlTableBackup(
+        self, ID: int, store: bool = False, restore: bool = False
+    ) -> Response:
         p = 0x00
         if store:
             p = [0x01, 0x43, 0x54, 0x52, 0x4C]
         elif restore:
             p = [0x02, 0x43, 0x54, 0x52, 0x4C]
         else:
-            return 0
+            return Response(None, "ERR_REQUIRES_STORE_OR_RESTORE")
         pl = self.packetLength([self.INSTR_CONTROL_TABLE_BACKUP] + p + [0x00, 0x00])
         packet = [ID] + pl + [self.INSTR_CONTROL_TABLE_BACKUP] + p
         return self.send(packet)
 
-    def syncRead(self, addr:int, length:int, ids:list):
-        p = []
+    def syncRead(self, addr: int, length: int, ids: list) -> Response:
         addrLowHigh = list(addr.to_bytes(2, "little"))
         lengthLowHigh = list(length.to_bytes(2, "little"))
         pl = self.packetLength(
@@ -373,7 +397,7 @@ class Protocol2(Protocol):
         )
         return self.send(packet)
 
-    def syncWrite(self, addr:int, length:int, values: list):
+    def syncWrite(self, addr: int, length: int, values: list) -> Response:
         """
         Example call: p.syncWrite(116, 4, [(1, 150), (2, 170)])
         set value at 116 which is 4 bytes to 150 for motor 1 and 170 to motor 2
@@ -397,7 +421,7 @@ class Protocol2(Protocol):
         )
         return self.send(packet)
 
-    def fastSyncRead(self, addr:int, length:int, ids:list):
+    def fastSyncRead(self, addr: int, length: int, ids: list) -> Response:
         addrLowHigh = list(addr.to_bytes(2, "little"))
         lengthLowHigh = list(length.to_bytes(2, "little"))
         pl = self.packetLength(
@@ -417,7 +441,7 @@ class Protocol2(Protocol):
         )
         return self.send(packet)
 
-    def bulkRead(self, values:list):
+    def bulkRead(self, values: list) -> Response:
         """
         Example call: p.bulkRead(116, 4, [(1, 150), (2, 170)])
         set value at 116 which is 4 bytes to 150 for motor 1 and 170 to motor 2
@@ -431,7 +455,7 @@ class Protocol2(Protocol):
         packet = [self.BROADCAST] + pl + [self.INSTR_BULK_READ] + p
         return self.send(packet)
 
-    def bulkWrite(self, values:list):
+    def bulkWrite(self, values: list) -> Response:
         p = []
         for ID, addr, length, data in values:
             p.append(ID)
@@ -442,7 +466,7 @@ class Protocol2(Protocol):
         packet = [self.BROADCAST] + pl + [self.INSTR_BULK_WRITE] + p
         return self.send(packet)
 
-    def fastBulkRead(self, values:list):
+    def fastBulkRead(self, values: list) -> Response:
         """
         Example call: p.bulkRead(116, 4, [(1, 150), (2, 170)])
         set value at 116 which is 4 bytes to 150 for motor 1 and 170 to motor 2
