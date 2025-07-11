@@ -2,6 +2,11 @@ import time
 
 
 class Lock:
+    """Simple lock to use with half duplex UART
+
+    Not "thread" safe so it should only be initialized by a singleton.
+    """
+
     def __init__(self):
         self.locked = False
 
@@ -11,10 +16,11 @@ class Lock:
         self.locked = True
 
     def __exit__(self, *args):
+        _ = args
         self.locked = False
 
 
-def twosComplement(value, length):
+def twosComplement(value: int, length: int):
     """Compute the 2's complement of int value
 
     Given an unsigned integer return signed value.
