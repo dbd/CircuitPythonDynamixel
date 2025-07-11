@@ -195,7 +195,7 @@ class Protocol2(Protocol):
                 return self.ERR_RX_CRC_MISMATCH
             err = packet[8]
             if err:
-                bit = ''.join(list(bin(err))[::-1][:-2]).index('1')
+                bit = "".join(list(bin(err))[::-1][:-2]).index("1")
                 return self.STATUS_ERRORS[bit]
             return None
 
