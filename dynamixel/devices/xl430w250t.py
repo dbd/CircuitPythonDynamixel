@@ -1,5 +1,6 @@
 from dynamixel.protocol import Protocol2
 from dynamixel.servo import Servo, paramUnit
+from dynamixel import utils
 import asyncio
 
 
@@ -74,7 +75,6 @@ class XL430_W250_T(Servo):
         self.unit = unit
         self.protocol = Protocol2(**kwargs)
         self.resolution = 4096
-        self.negative = False
         self.torqueEnabled = False
         self.moving = False
 
@@ -138,24 +138,14 @@ class XL430_W250_T(Servo):
 
 
     def convertNegative(self, value, length):
-        """Compute the 2's complement of int value val"""
-        maxInt = int.from_bytes(bytes([0xFF]*length), 'little')
-        if value < 0:
-            maxInt += value
-            return list(maxInt.to_bytes(length, 'little'))
-        else:
-            res = maxInt - value
-            return res
+        return utils.twosComplement(value, length)
 
     def setGoalPosition(self, value, unit=None):
         # Need to do a unit conversion
         unit = unit or self.unit
         value = self.convertUnits(value, unit)
         if value < 0:
-            self.negative = True
             value = self.convertNegative(value, self.CONTROL_TABLE.GOAL_POSITION[1])
-        else:
-            self.negative = False
         res = self.writeControlTableItem(self.CONTROL_TABLE.GOAL_POSITION, value)
         if res != "OK":
             return res
@@ -164,11 +154,8 @@ class XL430_W250_T(Servo):
         unit = unit or self.unit
         res = self.readControlTableItem(self.CONTROL_TABLE.PRESENT_POSITION)
         if isinstance(res, int):
-            if self.negative:
-                res = self.convertNegative(res, self.CONTROL_TABLE.GOAL_POSITION[1])
+            res = self.convertNegative(res, self.CONTROL_TABLE.GOAL_POSITION[1])
             res = self.convertRaw(res, unit)
-            if self.negative:
-                res *= -1
             self.position = res
         return self.position
 
