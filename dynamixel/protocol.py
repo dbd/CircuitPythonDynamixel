@@ -43,8 +43,8 @@ class Protocol:
         self,
         tx_enable: board.Pin = board.D2,
         baudRate: int = 1000000,
-        tx: board.Pin = board.RX,
-        rx: board.Pin = board.TX,
+        tx: board.Pin = board.TX,
+        rx: board.Pin = board.RX,
         timeout: int = 1,
     ):
         self.uart = busio.UART(tx, rx, baudrate=baudRate, timeout=timeout)
