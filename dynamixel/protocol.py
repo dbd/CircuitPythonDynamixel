@@ -19,6 +19,11 @@ class Error:
     ERR_DATA_LENGTH_ERROR = "ERR_DATA_LENGTH_ERROR"
     ERR_DATA_LIMIT_ERROR = "ERR_DATA_LIMIT_ERROR"
     ERR_ACCESS_ERROR = "ERR_ACCESS_ERROR"
+    ERR_OVERLOAD_ERROR = "ERR_OVERLOAD_ERROR"
+    ERR_RANGE_ERROR = "ERR_RANGE_ERROR"
+    ERR_OVERHEATING_ERROR = "ERR_OVERHEATING_ERROR"
+    ERR_ANGLE_ERROR = "ERR_ANGLE_ERROR"
+    ERR_INPUT_VOLTAGE_ERROR = "ERR_INPUT_VOLTAGE_ERROR"
 
     OK = "OK"
 
@@ -54,8 +59,15 @@ class Protocol:
         self.tx_enable.direction = digitalio.Direction.OUTPUT
         self.tx_enable.value = True
 
+    def _packetLength(self, packet: list, size: int) -> list:
+        # Length is the instruction + params + CRC
+        # simplified to num params + 3
+        pl = len(packet)
+        return list(pl.to_bytes(size, "little"))
 
 class Protocol1(Protocol):
+    _instance = None
+    initialized = False
     # (LEN, INST)
     INSTR_PING = 0x01
     INSTR_READ = 0x02
@@ -67,11 +79,256 @@ class Protocol1(Protocol):
     INSTR_SYNC_WRITE = 0x83
     INSTR_BULK_READ = 0x92
 
-    def __init__(self):
-        super(Protocol1, self).__init__()
+    HEADERS = [0xFF, 0xFF]
 
-    def checksum(self, packet: list):
-        pass
+    # INSTR Packet
+    class InstrPacket:
+        HEADER = [0, 1]
+        ID = [2]
+        LENGTH = [3]
+        INSTR = [4]
+        CRC = [-1]
+
+    # STATUS Packet
+    class StatusPacket:
+        HEADER = [0, 1]
+        ID = [2]
+        LENGTH = [3]
+        ERROR = [4]
+        CRC = [-1]
+
+
+    def __new__(cls, *args, **kwargs):
+        if not cls._instance:
+            cls._instance = super(Protocol1, cls).__new__(cls)
+        return cls._instance
+
+    def __init__(self, *args, **kwargs):
+        if not self.initialized:
+            super(Protocol1, self).__init__(*args, **kwargs)
+        self.initialized = True
+        self.STATUS_ERRORS = [
+            None,
+            Error.ERR_INSTR_ERROR,
+            Error.ERR_OVERLOAD_ERROR,
+            Error.ERR_CRC_ERR,
+            Error.ERR_RANGE_ERROR,
+            Error.ERR_OVERHEATING_ERROR,
+            Error.ERR_ANGLE_ERROR,
+            Error.ERR_INPUT_VOLTAGE_ERROR,
+        ]
+
+
+    def receive(self) -> Response:
+        def validationErrors(packet: list):
+            crc = self.checksum(packet[:-1])
+            if crc != packet[-1]:
+                return Error.ERR_RX_CRC_MISMATCH
+            err = packet[4]
+            if err:
+                bit = "".join(list(bin(err))[::-1][:-2]).index("1")
+                return self.STATUS_ERRORS[bit]
+            return Error.OK
+
+        length = 0
+        # read in HEADER HEADER HEADER RESERVED ID LENGTH_LOW LENGTH_HIGH 55 ERR CRC_LOW CRC_HIGH
+        packet = self.uart.read(self.uart.in_waiting)
+
+        # uncomment the following to see the actual hex, the status packet instr is 55
+        # but will show up in list(packet) as 85 which is just confusing. You can also
+        # capture the send and receive in the dynamixel wizard if you plug on cable into
+        # a u2d2 and select View > Packet
+        # tp = [f'0x{i:02X}'for i in packet]
+        # print(f'raw response: {tp}')
+
+        if packet is None:
+            return Response(None, Error.ERR_RX_TIMEOUT)
+        else:
+            packet = list(packet)
+        if packet[:2] == self.HEADERS:
+            length = packet[3]
+            if length + 4 == len(packet) and not self.uart.in_waiting:
+                return Response(packet, validationErrors(packet))
+            if length < len(packet):
+                headers = []
+                for i in range(len(packet)):
+                    j = packet[i : i + 4]
+                    if len(j) == 4 and j[:3] == self.HEADERS and j[3] != 0xFD:
+                        headers.append(i)
+                if not self.uart.in_waiting:
+                    packets = [
+                        packet[
+                            headers[i] : (
+                                headers[i + 1] if i + 1 < len(headers) else None
+                            )
+                        ]
+                        for i in range(len(headers))
+                    ]
+                    return Response(
+                        packets, [validationErrors(packet) for packet in packets]
+                    )
+            else:
+                toRead = 11 - (
+                    length + 1
+                )  # plus one because length include the instruction
+                t = self.uart.read(toRead)
+                if t is None:
+                    return Response(t, Error.ERR_RX_FAILED_TO_RX_ENTIRE_PACKET)
+                packet += list(t)
+                if self.uart.in_waiting:
+                    t = self.uart.read(self.uart.in_waiting)
+                packet += list(t)
+                return Response(packet, validationErrors(packet))
+        for i in range(len(packet)):
+            j = packet[i : i + 4]
+            if len(j) == 4 and j[:3] == self.HEADERS and j[3] != 0xFD:
+                break
+        else:
+            if not self.uart.in_waiting:
+                return Response(packet, Error.ERR_RX_NO_RESPONSE)
+            packet = list(self.uart.read(self.uart.in_waiting))
+        if packet:
+            return Response(packet, validationErrors(packet))
+
+        return Response(None, Error.ERR_RX_ERROR)
+
+    def checksum(self, packet: list) -> int:
+        return ~sum(packet[2:]) & 0xFF
+
+    def addChecksum(self, packet: list) -> list:
+        return packet + [self.checksum(packet + [0x00, 0x00])]
+
+    def packetLength(self, packet: list) -> list:
+        return self._packetLength(packet, 1)
+
+    def addHeaders(self, packet: list) -> list:
+        return self.HEADERS + packet
+
+    def updateLength(self, packet: list) -> list:
+        pl = self.packetLength(packet[5:] + [0x00, 0x00])
+        for index, value in zip(self.InstrPacket.LENGTH, pl):
+            packet[index] = value
+        return packet
+
+    def send(self, packet: list) -> Response:
+        """Transmission Process
+
+        1. Generate basic packet structure including required parameters.
+        2. Apply Byte Stuffing to ensure that packets are processed successfully.
+        3. Update packet length to include any stuffed bytes.
+        4. Calculate final CRC with byte stuffing applied.
+        """
+        packet = self.addHeaders(packet)
+        packet = self.updateLength(packet)
+        packet = self.addChecksum(packet)
+        # Packet at this point matches the official sdk
+        with self.lock:
+            self.tx_enable.value = True
+            time.sleep(0.01)
+            self.uart.write(bytes(packet))
+            self.tx_enable.value = False
+            time.sleep(0.01)
+            res = self.receive()
+            self.uart.reset_input_buffer()
+        return res
+
+    def ping(self, ID: int) -> Response:
+        length = self.packetLength([self.INSTR_PING, 0x00])
+        packet = [ID] + length + [self.INSTR_PING]
+        return self.send(packet)
+
+    def read(self, ID: int, addr: int, length: int) -> Response:
+        pl = self.packetLength(
+            [self.INSTR_READ, addr, length] + [0x00, 0x00]
+        )
+        packet = [ID] + pl + [self.INSTR_READ, addr, length]
+        res = self.send(packet)
+        if not res.ok:
+            return res
+        data = int.from_bytes(bytes(res.data[5:-1]), "little")
+        return Response(data, Error.OK)
+
+    def write(self, ID: int, addr: int, length:int, data: int) -> Response:
+        dataLowHigh = list(data.to_bytes(length, "little"))
+        pl = self.packetLength(
+            [self.INSTR_WRITE, addr] + dataLowHigh + [0x00, 0x00]
+        )
+        packet = [ID] + pl + [self.INSTR_WRITE, addr] + dataLowHigh
+        return self.send(packet)
+
+    def regWrite(self, ID: int, addr: int, length: int, data: int) -> Response:
+        dataLowHigh = list(data.to_bytes(length, "little"))
+        pl = self.packetLength(
+            [self.INSTR_REG_WRITE, addr] + dataLowHigh + [0x00, 0x00]
+        )
+        packet = [ID] + pl + [self.INSTR_REG_WRITE] + dataLowHigh
+        return self.send(packet)
+
+    def action(self, ID: int) -> Response:
+        length = self.packetLength([self.INSTR_ACTION, 0x00, 0x00])
+        packet = [ID] + length + [self.INSTR_ACTION]
+        return self.send(packet)
+
+    def factoryReset(
+        self,
+        ID: int,
+        resetAll: bool = False,
+        resetAllExceptId: bool = False,
+        resetAllExceptIdBaud: bool = False,
+    ) -> Response:
+        p = 0x00
+        if resetAll:
+            p = 0xFF
+        elif resetAllExceptId:
+            p = 0x01
+        elif resetAllExceptIdBaud:
+            p = 0x02
+        else:
+            return 0
+        length = self.packetLength([self.INSTR_FACTORY_RESET, p, 0x00, 0x00])
+        packet = [ID] + length + [self.INSTR_FACTORY_RESET, p]
+        return self.send(packet)
+
+    def reboot(self, ID: int) -> Response:
+        length = self.packetLength([self.INSTR_REBOOT, 0x00, 0x00])
+        packet = [ID] + length + [self.INSTR_REBOOT]
+        return self.send(packet)
+
+    def syncRead(self, addr: int, length: int, ids: list) -> Response:
+        lengthLowHigh = list(length.to_bytes(2, "little"))
+        pl = self.packetLength(
+            [self.INSTR_SYNC_READ, addr] + lengthLowHigh + ids + [0x00, 0x00]
+        )
+        packet = (
+            [self.BROADCAST]
+            + pl
+            + [self.INSTR_SYNC_READ, addr]
+            + lengthLowHigh
+            + ids
+        )
+        return self.send(packet)
+
+    def syncWrite(self, addr: int, length: int, values: list) -> Response:
+        """
+        Example call: p.syncWrite(116, 4, [(1, 150), (2, 170)])
+        set value at 116 which is 4 bytes to 150 for motor 1 and 170 to motor 2
+        """
+        p = []
+        for ID, value in values:
+            p.append(ID)
+            p.extend(list(value.to_bytes(length, "little")))
+        lengthLowHigh = list(length.to_bytes(2, "little"))
+        pl = self.packetLength(
+            [self.INSTR_SYNC_WRITE, addr] + lengthLowHigh + p + [0x00, 0x00]
+        )
+        packet = (
+            [self.BROADCAST]
+            + pl
+            + [self.INSTR_SYNC_WRITE, addr]
+            + lengthLowHigh
+            + p
+        )
+        return self.send(packet)
 
 
 class Protocol2(Protocol):
