@@ -354,10 +354,10 @@ class Protocol2(Protocol):
     # INSTR Packet
     class Packet:
         HEADER = [0, 1, 2]
-        RESERVED = [4]
-        ID = [5]
-        LENGTH = [6, 7]
-        INSTR = [8]
+        RESERVED = [3]
+        ID = [4]
+        LENGTH = [5, 6]
+        INSTR = [7]
         CRC = [-2, -1]
 
     # HEADER ID LENGTH INSTR PARAM CRC
@@ -368,7 +368,6 @@ class Protocol2(Protocol):
     HEADERS = [0xFF, 0xFF, 0xFD]
     RESERVED = [0x00]
     LENGTH_PLACEHOLDER = [0x00, 0x00]
-    LENGTH_INDICES = (5, 6)
 
     def __new__(cls, *args, **kwargs):
         if not cls._instance:
@@ -415,10 +414,7 @@ class Protocol2(Protocol):
         return list(crc_accum.to_bytes(2, "little"))
 
     def packetLength(self, packet: list) -> list:
-        # Length is the instruction + params + CRC
-        # simplified to num params + 3
-        pl = len(packet)
-        return list(pl.to_bytes(2, "little"))
+        return self._packetLength(packet, 2)
 
     def addStuffing(self, packet: list) -> list:
         padIndices = []
@@ -435,7 +431,7 @@ class Protocol2(Protocol):
     def updateLength(self, packet: list) -> list:
         pl = self.packetLength(packet[7:] + [0x00, 0x00])
         for index, value in zip(self.Packet.LENGTH, pl):
-            packet[index - 1] = value
+            packet[index] = value
         return packet
 
     def addHeaders(self, packet: list) -> list:
@@ -496,7 +492,7 @@ class Protocol2(Protocol):
         if packet[:3] == self.HEADERS:
             low, high = packet[5 : 6 + 1]
             length = int.from_bytes(bytes([low, high]), "little")
-            if length + 7 == len(packet):
+            if length + 7 == len(packet) and not self.uart.in_waiting:
                 return Response(packet, validationErrors(packet))
             if length < len(packet):
                 headers = []
