@@ -65,9 +65,12 @@ class Protocol:
         pl = len(packet)
         return list(pl.to_bytes(size, "little"))
 
+
 class Protocol1(Protocol):
     _instance = None
     initialized = False
+    VERSION = "1.0"
+
     # (LEN, INST)
     INSTR_PING = 0x01
     INSTR_READ = 0x02
@@ -97,7 +100,6 @@ class Protocol1(Protocol):
         ERROR = [4]
         CRC = [-1]
 
-
     def __new__(cls, *args, **kwargs):
         if not cls._instance:
             cls._instance = super(Protocol1, cls).__new__(cls)
@@ -117,7 +119,6 @@ class Protocol1(Protocol):
             Error.ERR_ANGLE_ERROR,
             Error.ERR_INPUT_VOLTAGE_ERROR,
         ]
-
 
     def receive(self) -> Response:
         def validationErrors(packet: list):
@@ -238,9 +239,7 @@ class Protocol1(Protocol):
         return self.send(packet)
 
     def read(self, ID: int, addr: int, length: int) -> Response:
-        pl = self.packetLength(
-            [self.INSTR_READ, addr, length] + [0x00, 0x00]
-        )
+        pl = self.packetLength([self.INSTR_READ, addr, length] + [0x00, 0x00])
         packet = [ID] + pl + [self.INSTR_READ, addr, length]
         res = self.send(packet)
         if not res.ok:
@@ -248,11 +247,9 @@ class Protocol1(Protocol):
         data = int.from_bytes(bytes(res.data[5:-1]), "little")
         return Response(data, Error.OK)
 
-    def write(self, ID: int, addr: int, length:int, data: int) -> Response:
+    def write(self, ID: int, addr: int, length: int, data: int) -> Response:
         dataLowHigh = list(data.to_bytes(length, "little"))
-        pl = self.packetLength(
-            [self.INSTR_WRITE, addr] + dataLowHigh + [0x00, 0x00]
-        )
+        pl = self.packetLength([self.INSTR_WRITE, addr] + dataLowHigh + [0x00, 0x00])
         packet = [ID] + pl + [self.INSTR_WRITE, addr] + dataLowHigh
         return self.send(packet)
 
@@ -300,11 +297,7 @@ class Protocol1(Protocol):
             [self.INSTR_SYNC_READ, addr] + lengthLowHigh + ids + [0x00, 0x00]
         )
         packet = (
-            [self.BROADCAST]
-            + pl
-            + [self.INSTR_SYNC_READ, addr]
-            + lengthLowHigh
-            + ids
+            [self.BROADCAST] + pl + [self.INSTR_SYNC_READ, addr] + lengthLowHigh + ids
         )
         return self.send(packet)
 
@@ -322,11 +315,7 @@ class Protocol1(Protocol):
             [self.INSTR_SYNC_WRITE, addr] + lengthLowHigh + p + [0x00, 0x00]
         )
         packet = (
-            [self.BROADCAST]
-            + pl
-            + [self.INSTR_SYNC_WRITE, addr]
-            + lengthLowHigh
-            + p
+            [self.BROADCAST] + pl + [self.INSTR_SYNC_WRITE, addr] + lengthLowHigh + p
         )
         return self.send(packet)
 
@@ -334,6 +323,7 @@ class Protocol1(Protocol):
 class Protocol2(Protocol):
     _instance = None
     initialized = False
+    VERSION = "2.0"
 
     INSTR_PING = 0x01
     INSTR_READ = 0x02

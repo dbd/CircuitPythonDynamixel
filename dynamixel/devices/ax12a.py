@@ -44,6 +44,7 @@ class controlTable:
     LOCK = (47, 1)
     PUNCH = (48, 2)
 
+
 class AX12A(Servo):
     CONTROL_TABLE = controlTable
     PARAM_UNIT = paramUnit
@@ -51,8 +52,8 @@ class AX12A(Servo):
 
     def __init__(self, *args, unit=PARAM_UNIT.UNIT_DEGREE, **kwargs):
         super(AX12A, self).__init__(*args, **kwargs)
+        self.protocol = Protocol1(**kwargs)
         self.unit = unit
-        self.protocol: Protocol1 = Protocol1(**kwargs)
         self.resolution = 1024
         self.torqueEnabled = False
         self.moving = False
@@ -99,9 +100,7 @@ class AX12A(Servo):
         return self.writeControlTableItem(self.CONTROL_TABLE.LED, 0)
 
     def setOperationMode(self, operatingMode):
-        self.writeControlTableItem(
-            self.CONTROL_TABLE.CW_ANGLE_LIMIT, operatingMode[0]
-        )
+        self.writeControlTableItem(self.CONTROL_TABLE.CW_ANGLE_LIMIT, operatingMode[0])
         return self.writeControlTableItem(
             self.CONTROL_TABLE.CCW_ANGLE_LIMIT, operatingMode[1]
         )
@@ -137,17 +136,17 @@ class AX12A(Servo):
     def setMaxPosition(self, value, unit=None):
         unit = unit or self.unit
         value = self.convertUnits(value, unit)
-        return self.writeControlTableItem(self.CONTROL_TABLE.MAX_POSITION_LIMIT, value)
+        return self.writeControlTableItem(self.CONTROL_TABLE.CW_ANGLE_LIMIT, value)
 
     def setMinPosition(self, value, unit=None):
         unit = unit or self.unit
         value = self.convertUnits(value, unit)
-        return self.writeControlTableItem(self.CONTROL_TABLE.MIN_POSITION_LIMIT, value)
+        return self.writeControlTableItem(self.CONTROL_TABLE.CCW_ANGLE_LIMIT, value)
 
     def getPositionLimits(self, unit=None):
         unit = unit or self.unit
-        maxRes = self.readControlTableItem(self.CONTROL_TABLE.MAX_POSITION_LIMIT)
-        minRes = self.readControlTableItem(self.CONTROL_TABLE.MIN_POSITION_LIMIT)
+        maxRes = self.readControlTableItem(self.CONTROL_TABLE.CW_ANGLE_LIMIT)
+        minRes = self.readControlTableItem(self.CONTROL_TABLE.CCW_ANGLE_LIMIT)
         if isinstance(maxRes, int):
             maxRes = self.convertRaw(maxRes, unit)
         if isinstance(minRes, int):
@@ -155,16 +154,10 @@ class AX12A(Servo):
         return (minRes, maxRes)
 
     def setGoalVelocity(self, value):
-        return self.writeControlTableItem(self.CONTROL_TABLE.GOAL_VELOCITY, value)
+        return self.writeControlTableItem(self.CONTROL_TABLE.MOVING_SPEED, value)
 
     def getPresentVelocity(self):
-        return self.readControlTableItem(self.CONTROL_TABLE.PRESENT_VELOCITY)
-
-    def setGoalPwm(self, value):
-        return self.writeControlTableItem(self.CONTROL_TABLE.GOAL_PWM, value)
-
-    def getPresentPwm(self):
-        return self.readControlTableItem(self.CONTROL_TABLE.PRESENT_PWM)
+        return self.readControlTableItem(self.CONTROL_TABLE.PRESENT_SPEED)
 
     def getTorqueEnabled(self):
         return self.readControlTableItem(self.CONTROL_TABLE.TORQUE_ENABLE)

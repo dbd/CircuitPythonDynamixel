@@ -16,7 +16,7 @@ class Servo:
         self.torque = False
         self.position = None
         self.initial_position = None
-        self.protocol: Protocol2 = None
+        self.protocol: Protocol1 | Protocol2 = None
         self.resolution = None
         self.moving = False
         _ = kwargs
@@ -43,7 +43,7 @@ class Servo:
         self.protocol.reboot(self.id)
 
     def clear(self, position: bool = False, error: bool = False):
-        if self.protocol.VERSION == "2.0":
+        if isinstance(self.protocol, Protocol2):
             self.protocol.clear(self.id, position=position, error=error)
         else:
             return "Not supported on Protocol v1.0"
